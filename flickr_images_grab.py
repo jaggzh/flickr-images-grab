@@ -91,7 +91,7 @@ def download_search(results):
                           meta['query'],
                           photo['id']))
         sys.stdout.flush()
-        get_cached_exif(meta, photo)
+        # get_cached_exif(meta, photo) # working on this
         data_fname = DATA_FNAME % (meta['query'], photo['id'], meta['query'])
         if os.path.isfile(data_fname):
             print("  SKIPPING CACHED")
@@ -99,10 +99,6 @@ def download_search(results):
 
         exif = get_photo_exif(photo)
         time.sleep(0.2)
-# downloading photo 1/10 ()('FAIL Status: ', u'fail')
-# {u'stat': u'fail', u'code': 2, u'message': u'Permission denied'}
-# downloading photo 2/10 ()('FAIL Status: ', u'ok')
-# {u'photo': {u'exif': [{u'raw': {u'_content': u'NIKON'}, u'tagspace': u'IFD0', u'tagspaceid': 0, u'tag': u'Make', u'label': u'Make'}, {u'raw': {u'_content': u'COOLPIX S4'}, u'tagspace': u'IFD0', u'tagspaceid': 0, u'tag': u'Model', u'label': u'Model'}, {u'tag': u'XResolution', u'label': u'X-Resolution', u'raw': {u'_content': u'240'}, u'tagspaceid': 0, u'clean': {u'_content': u'240 dpi'}, u'tagspace': u'IFD0'}, {u'tag': u'YResolution', u'label': u'Y-Resolution', u'raw': {u'_content': u'240'}, u'tagspaceid': 0, u'c
         if not exif['stat'] == u'ok':
             print(" EXIF FAIL Status: ", exif['stat'])
             time.sleep(0.15)
