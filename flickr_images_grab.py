@@ -22,7 +22,7 @@ import times
 import requests
 import flickr_api
 
-config = json.load(open('./painladen.config'))
+config = json.load(open('./config.json'))
 
 TAG = 'philMeta'
 API_KEY = config['flickr_api_key']
@@ -35,7 +35,9 @@ IMG_URL_S = 'http://farm%s.staticflickr.com/%s/%s_%s_q.jpg'
 IMG_FNAME_S = './images/%s/%s_square-%s.jpg'  # query/id-query.jpg
 IMG_DIR = './images/%s'  # query
 DATA_DIR = './data'
-DATA_FNAME = './data/%s.json'  # query
+DATA_ALL_FNAME = './data/%s.json'  # query
+DATA_FNAME = './images/%s/%s-%s-data.json'  # query/id-query-data.json
+EXIF_FNAME = './images/%s/%s-%s-exif.json'  # query/id-query-exif.json
 NOW = times.now()
 TZ = 'America/New_York'
 YMD = times.format(NOW, TZ, fmt='%Y-%m-%d')
@@ -53,9 +55,17 @@ def get_photo_info(photo):
               'method': 'flickr.photos.getInfo',
               'format': 'json'}
     response = requests.get(REST_ENDPOINT, params=params)
-    time.sleep(0.5)
     return json.loads(unjsonpify(response.text))
 
+def get_photo_exif(photo):
+    params = {'api_key': API_KEY,
+              'photo_id': photo['id'],
+              'secret': photo['secret'],
+              'method': 'flickr.photos.getExif',
+              'format': 'json'}
+    response = requests.get(REST_ENDPOINT, params=params)
+    s = json.loads(unjsonpify(response.text))
+    return s
 
 def save_image(url, fname):
     r = requests.get(url, stream=True)
@@ -65,6 +75,7 @@ def save_image(url, fname):
         return True
     return False
 
+import ipdb as pdb
 
 def download_search(results):
     meta = results[TAG]
@@ -74,12 +85,42 @@ def download_search(results):
     if not os.path.isdir(IMG_DIR % meta['query']):
         os.makedirs(IMG_DIR % meta['query'])
     for i, photo in enumerate(results['photos']['photo']):
-        sys.stdout.write('\rdownloading photo %d/%d (%s)' %
+        sys.stdout.write('\rDownloading photo %d/%d (%s) (id: %s) ' %
                          (i + 1,
                           len(results['photos']['photo']),
-                          meta['query']))
+                          meta['query'],
+                          photo['id']))
         sys.stdout.flush()
+        get_cached_exif(meta, photo)
+        data_fname = DATA_FNAME % (meta['query'], photo['id'], meta['query'])
+        if os.path.isfile(data_fname):
+            print("  SKIPPING CACHED")
+            continue
+
+        exif = get_photo_exif(photo)
+        time.sleep(0.2)
+# downloading photo 1/10 ()('FAIL Status: ', u'fail')
+# {u'stat': u'fail', u'code': 2, u'message': u'Permission denied'}
+# downloading photo 2/10 ()('FAIL Status: ', u'ok')
+# {u'photo': {u'exif': [{u'raw': {u'_content': u'NIKON'}, u'tagspace': u'IFD0', u'tagspaceid': 0, u'tag': u'Make', u'label': u'Make'}, {u'raw': {u'_content': u'COOLPIX S4'}, u'tagspace': u'IFD0', u'tagspaceid': 0, u'tag': u'Model', u'label': u'Model'}, {u'tag': u'XResolution', u'label': u'X-Resolution', u'raw': {u'_content': u'240'}, u'tagspaceid': 0, u'clean': {u'_content': u'240 dpi'}, u'tagspace': u'IFD0'}, {u'tag': u'YResolution', u'label': u'Y-Resolution', u'raw': {u'_content': u'240'}, u'tagspaceid': 0, u'c
+        if not exif['stat'] == u'ok':
+            print(" EXIF FAIL Status: ", exif['stat'])
+            time.sleep(0.15)
+            continue
+        exif_items = exif['photo']['exif']
+        try:
+            [foo[u'clean'][u'_content'] \
+                for foo in exif_items \
+                    if foo[u'tag'] == u'FocalLength'][0]
+        except:
+            print(" exif['photo']['exif'][0] missing ['clean']['_content']")
+            continue
+            #print(exif)
+            #pdb.set_trace()
+            #print('')
+        # pdb.set_trace()
         info = get_photo_info(photo)
+        time.sleep(0.15)
         photos_data.append(info['photo'])
         img_url = IMG_URL % (photo['farm'],
                              photo['server'],
@@ -90,10 +131,16 @@ def download_search(results):
                                  photo['id'],
                                  photo['secret'])
         img_fname = IMG_FNAME % (meta['query'], photo['id'], meta['query'])
-        img_fname_s = IMG_FNAME_S % (meta['query'], photo['id'], meta['query'])
+        exif_fname = EXIF_FNAME % (meta['query'], photo['id'], meta['query'])
+        #img_fname_s = IMG_FNAME_S % (meta['query'], photo['id'], meta['query'])
+        print("Downloading {}".format(img_url))
         save_image(img_url, img_fname)
-        save_image(img_url_s, img_fname_s)
-    with open(DATA_FNAME % meta['query'], 'w') as f:
+        print(" Saving EXIF {}".format(exif_fname))
+        with open(exif_fname, 'w') as f: json.dump(exif, f)
+        with open(data_fname, 'w') as f: json.dump(info['photo'], f)
+        #save_image(img_url_s, img_fname_s)
+        time.sleep(0.15)
+    with open(DATA_ALL_FNAME % meta['query'], 'w') as f:
         json.dump(photos_data, f)
 
 
@@ -114,7 +161,7 @@ def search(query='pain'):
               'content_type': '1',  # just photos
               'privacy_filter': '1',  # public photos
               'license': '1,2,4,5',  # see README.md
-              'per_page': '500',  # max=500
+              'per_page': '4000',  # max=500
               'sort': 'relevance',
               'method': 'flickr.photos.search',
               'format': 'json'}
@@ -166,3 +213,4 @@ if __name__ == '__main__':
         pprint(config)
         print(parser.print_help())
 
+# vim:et
